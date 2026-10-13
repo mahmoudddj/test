@@ -1,0 +1,46 @@
+# Image QC configuration. Bump `version` whenever a threshold changes; the
+# version is stored with every QC result so results remain reproducible.
+version: "qc-1.0.0"
+
+file:
+  allowed_thermal_formats: [csv, txt, npy, tif, tiff, jpg, jpeg, png]
+  allowed_rgb_formats: [jpg, jpeg, png, tif, tiff]
+  min_size_bytes: 200
+
+dimensions:
+  thermal_min: [60, 60]          # [width, height]
+  rgb_min: [320, 240]
+  # Expected sensor resolutions (WARNING if different). FLIR C5 IR = 160x120.
+  thermal_expected: []           # e.g. [[160, 120]] once the study camera is fixed
+  rgb_expected: []
+
+thermal:
+  physical_range_c: [-40.0, 150.0]   # outside -> FAIL (invalid / unit error, e.g. Kelvin)
+  skin_max_plausible_c: [28.0, 43.0] # hottest pixel expected in this band, else WARNING
+  mean_plausible_c: [18.0, 40.0]
+  max_nan_fraction: 0.01             # FAIL above
+  min_std_c: 0.15                    # WARNING below (flat / lens cap / no subject)
+  max_saturation_fraction: 0.05      # fraction of pixels at the exact min or max value
+  non_radiometric_status: WARNING    # palette images: temperatures unavailable
+
+rgb:
+  blur_laplacian_var_warning: 60.0   # variance-of-Laplacian on 512px-long-side grayscale
+  blur_laplacian_var_fail: 10.0
+  brightness_range: [25, 235]        # mean grey level, WARNING outside
+  min_std: 4.0                       # FAIL below (blank frame)
+
+metadata:
+  fail_if_missing: [study_id, episode_id, acquisition_time]
+  warn_if_missing: [device_id, operator_id, distance_cm, view]
+  thermal_warn_if_missing: [ambient_temperature_c, emissivity]
+
+timestamps:
+  future_tolerance_minutes: 10
+  exif_mismatch_warning_minutes: 30
+  removal_grace_hours: 2
+  min_interval_same_view_minutes: 30   # WARNING if a second image of same view is closer than this
+
+duplicates:
+  exact: FAIL                 # identical bytes (sha256) already stored
+  near_hamming_max: 3         # dHash (64 bit) distance for near-duplicate WARNING within the same episode
+  near_window_minutes: 120

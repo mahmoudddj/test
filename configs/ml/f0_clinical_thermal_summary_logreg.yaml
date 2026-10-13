@@ -1,0 +1,10 @@
+# Interpretable baseline: clinical + hand-crafted thermal summary features (t_max - ambient etc.).
+# Any deep model must beat THIS to justify its complexity.
+name: f0b_clinical_thermalsummary_logreg
+family: F0
+dataset_root: var/data/datasets/irtcri_early_warning/0.1.0
+model:
+  kind: sklearn
+  sklearn_estimator: logistic
+  clinical_feature_groups: [clin, base, ep, img]
+threshold: {rule: target_sensitivity, target: 0.85}

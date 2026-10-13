@@ -1,0 +1,686 @@
+# =============================================================================
+# IRT-in-CRI Study - DATA DICTIONARY (machine-readable, single source of truth)
+# =============================================================================
+# Used by: Data Hub validation, CSV/Excel import, dataset builder, ML feature
+# construction, DQ dashboard and documentation (docs/data_dictionary.md is
+# generated from this file with `irtcri dictionary-docs`).
+#
+# Field semantics
+#   name               machine-readable variable name (snake_case, stable)
+#   label              human-readable label
+#   entity             table in which values are stored
+#                        observation  -> clinical_observation (repeated vitals/scores)
+#                        laboratory   -> laboratory_result
+#                        patient      -> patient (baseline)
+#                        assessment   -> clinical_assessment (exit-site exam)
+#                        image        -> thermal_image / rgb_image acquisition metadata
+#   type               float | int | bool | category | string
+#   unit               canonical (stored) unit; values are converted on entry
+#   unit_alternatives  accepted input units: canonical = value * scale + offset
+#   hard_range         physiologically impossible outside -> rejected (not stored)
+#   plausible_range    unusual outside -> stored but flagged for data query
+#   allowed_values     for category variables
+#   missing            how missingness is represented (see `missing_codes`)
+#   source             expected origin of the data
+#   time_reference     which timestamp `event_time` denotes
+#   availability       when the value becomes *knowable* (used for leakage control)
+#                        event_time            -> knowable at event_time (+ lag_minutes)
+#                        source_time           -> knowable at source_time (e.g. lab report time);
+#                                                 if missing, event_time + lag_minutes
+#   expected_interval_hours  protocol collection interval (missingness reporting)
+#   required           counted in "missing required variables" DQ metrics
+#   protocol_status    core | optional (protocol-approved but not mandatory)
+#   aliases            accepted column names on import
+#   validation         additional human-readable rules (cross-field rules are
+#                      implemented in irtcri/schemas/dictionary.py::CROSS_FIELD_RULES)
+# =============================================================================
+
+version: "1.0.0"
+missing_codes:
+  ND: "Not done / not measured"
+  NA: "Not applicable"
+  UNK: "Unknown"
+  NR: "Not recorded in source"
+missing_default: "Stored as NULL value with optional missing_reason code (ND|NA|UNK|NR). No sentinel numbers (e.g. -99) are ever stored."
+
+variables:
+  # ---------------------------------------------------------------- vitals
+  - name: temperature_c
+    label: Body temperature
+    entity: observation
+    category: vital
+    type: float
+    unit: degC
+    unit_alternatives: {degF: {scale: 0.5555556, offset: -17.7777778}}
+    hard_range: [25.0, 45.0]
+    plausible_range: [34.0, 41.5]
+    source: nursing chart / bedside monitor / EHR
+    time_reference: measurement time
+    availability: {basis: event_time, lag_minutes: 0}
+    expected_interval_hours: 6
+    required: true
+    protocol_status: core
+    aliases: [temp, temperature, body_temp]
+  - name: heart_rate
+    label: Heart rate
+    entity: observation
+    category: vital
+    type: float
+    unit: bpm
+    hard_range: [0, 300]
+    plausible_range: [30, 200]
+    source: bedside monitor / nursing chart
+    time_reference: measurement time
+    availability: {basis: event_time, lag_minutes: 0}
+    expected_interval_hours: 6
+    required: true
+    protocol_status: core
+    aliases: [hr, pulse]
+  - name: spo2
+    label: Oxygen saturation (pulse oximetry)
+    entity: observation
+    category: vital
+    type: float
+    unit: pct
+    hard_range: [0, 100]
+    plausible_range: [60, 100]
+    source: bedside monitor
+    time_reference: measurement time
+    availability: {basis: event_time, lag_minutes: 0}
+    expected_interval_hours: 6
+    required: true
+    protocol_status: core
+    aliases: [sao2_pulse, oxygen_saturation]
+  - name: sbp
+    label: Systolic blood pressure
+    entity: observation
+    category: vital
+    type: float
+    unit: mmHg
+    hard_range: [0, 300]
+    plausible_range: [50, 250]
+    source: bedside monitor / nursing chart
+    time_reference: measurement time
+    availability: {basis: event_time, lag_minutes: 0}
+    expected_interval_hours: 6
+    required: true
+    protocol_status: core
+    aliases: [systolic_bp]
+    validation: ["sbp > dbp at the same timestamp"]
+  - name: dbp
+    label: Diastolic blood pressure
+    entity: observation
+    category: vital
+    type: float
+    unit: mmHg
+    hard_range: [0, 250]
+    plausible_range: [20, 150]
+    source: bedside monitor / nursing chart
+    time_reference: measurement time
+    availability: {basis: event_time, lag_minutes: 0}
+    expected_interval_hours: 6
+    required: true
+    protocol_status: core
+    aliases: [diastolic_bp]
+    validation: ["dbp < sbp at the same timestamp"]
+  - name: map
+    label: Mean arterial pressure
+    entity: observation
+    category: vital
+    type: float
+    unit: mmHg
+    hard_range: [0, 250]
+    plausible_range: [30, 180]
+    source: bedside monitor or derived (dbp + (sbp-dbp)/3)
+    time_reference: measurement time
+    availability: {basis: event_time, lag_minutes: 0}
+    expected_interval_hours: 6
+    required: false
+    protocol_status: core
+    aliases: [mean_bp, mean_arterial_pressure]
+    validation: ["dbp <= map <= sbp at the same timestamp"]
+  - name: respiratory_rate
+    label: Respiratory rate
+    entity: observation
+    category: vital
+    type: float
+    unit: per_min
+    hard_range: [0, 80]
+    plausible_range: [6, 50]
+    source: nursing chart / bedside monitor
+    time_reference: measurement time
+    availability: {basis: event_time, lag_minutes: 0}
+    expected_interval_hours: 6
+    required: true
+    protocol_status: core
+    aliases: [rr, resp_rate]
+  - name: fio2
+    label: Fraction of inspired oxygen
+    entity: observation
+    category: respiratory
+    type: float
+    unit: fraction
+    unit_alternatives: {pct: {scale: 0.01, offset: 0}}
+    hard_range: [0.21, 1.0]
+    plausible_range: [0.21, 1.0]
+    source: ventilator / oxygen prescription
+    time_reference: time of setting
+    availability: {basis: event_time, lag_minutes: 0}
+    expected_interval_hours: 6
+    required: false
+    protocol_status: core
+    aliases: [fio2_fraction]
+  - name: apache_ii
+    label: APACHE II score
+    entity: observation
+    category: score
+    type: int
+    unit: points
+    hard_range: [0, 71]
+    plausible_range: [0, 60]
+    source: ICU documentation (worst values of first 24 h)
+    time_reference: end of the 24 h scoring window
+    availability: {basis: event_time, lag_minutes: 0}
+    expected_interval_hours: null
+    required: false
+    protocol_status: core
+    aliases: [apache2, apache_2]
+  # ------------------------------------------------------- blood gases / labs
+  - name: hco3
+    label: Bicarbonate (HCO3-)
+    entity: laboratory
+    category: blood_gas
+    type: float
+    unit: mmol/L
+    hard_range: [0, 60]
+    plausible_range: [8, 45]
+    source: blood gas analyser / laboratory
+    time_reference: specimen collection time
+    availability: {basis: source_time, lag_minutes: 30}
+    expected_interval_hours: 6
+    required: false
+    protocol_status: core
+    aliases: [bicarbonate]
+  - name: paco2
+    label: Arterial partial pressure of CO2
+    entity: laboratory
+    category: blood_gas
+    type: float
+    unit: mmHg
+    unit_alternatives: {kPa: {scale: 7.50062, offset: 0}}
+    hard_range: [5, 200]
+    plausible_range: [15, 120]
+    source: blood gas analyser
+    time_reference: specimen collection time
+    availability: {basis: source_time, lag_minutes: 30}
+    expected_interval_hours: 6
+    required: false
+    protocol_status: core
+  - name: sao2
+    label: Arterial oxygen saturation (blood gas)
+    entity: laboratory
+    category: blood_gas
+    type: float
+    unit: pct
+    hard_range: [0, 100]
+    plausible_range: [50, 100]
+    source: blood gas analyser
+    time_reference: specimen collection time
+    availability: {basis: source_time, lag_minutes: 30}
+    expected_interval_hours: 6
+    required: false
+    protocol_status: core
+  - name: lactate
+    label: Lactate
+    entity: laboratory
+    category: blood_gas
+    type: float
+    unit: mmol/L
+    unit_alternatives: {mg/dL: {scale: 0.111, offset: 0}}
+    hard_range: [0, 35]
+    plausible_range: [0.2, 20]
+    source: blood gas analyser / laboratory
+    time_reference: specimen collection time
+    availability: {basis: source_time, lag_minutes: 30}
+    expected_interval_hours: 6
+    required: false
+    protocol_status: core
+  - name: ast
+    label: Aspartate aminotransferase
+    entity: laboratory
+    category: chemistry
+    type: float
+    unit: U/L
+    hard_range: [0, 30000]
+    plausible_range: [3, 5000]
+    source: laboratory
+    time_reference: specimen collection time
+    availability: {basis: source_time, lag_minutes: 240}
+    expected_interval_hours: 24
+    required: false
+    protocol_status: core
+  - name: bun
+    label: Blood urea nitrogen
+    entity: laboratory
+    category: chemistry
+    type: float
+    unit: mg/dL
+    unit_alternatives: {mmol/L: {scale: 2.8, offset: 0}}
+    hard_range: [0, 400]
+    plausible_range: [2, 200]
+    source: laboratory
+    time_reference: specimen collection time
+    availability: {basis: source_time, lag_minutes: 240}
+    expected_interval_hours: 24
+    required: false
+    protocol_status: core
+  - name: urea
+    label: Urea
+    entity: laboratory
+    category: chemistry
+    type: float
+    unit: mmol/L
+    unit_alternatives: {mg/dL: {scale: 0.1665, offset: 0}}
+    hard_range: [0, 150]
+    plausible_range: [1, 80]
+    source: laboratory
+    time_reference: specimen collection time
+    availability: {basis: source_time, lag_minutes: 240}
+    expected_interval_hours: 24
+    required: false
+    protocol_status: core
+  - name: calcium
+    label: Calcium (total)
+    entity: laboratory
+    category: chemistry
+    type: float
+    unit: mmol/L
+    unit_alternatives: {mg/dL: {scale: 0.2495, offset: 0}}
+    hard_range: [0.5, 6.0]
+    plausible_range: [1.2, 3.5]
+    source: laboratory
+    time_reference: specimen collection time
+    availability: {basis: source_time, lag_minutes: 240}
+    expected_interval_hours: 24
+    required: false
+    protocol_status: core
+  - name: creatinine
+    label: Creatinine
+    entity: laboratory
+    category: chemistry
+    type: float
+    unit: umol/L
+    unit_alternatives: {mg/dL: {scale: 88.42, offset: 0}}
+    hard_range: [5, 3500]
+    plausible_range: [20, 2000]
+    source: laboratory
+    time_reference: specimen collection time
+    availability: {basis: source_time, lag_minutes: 240}
+    expected_interval_hours: 24
+    required: true
+    protocol_status: core
+    validation: ["Dialysis patients: interpret relative to dialysis session timing"]
+  - name: bilirubin
+    label: Bilirubin (total)
+    entity: laboratory
+    category: chemistry
+    type: float
+    unit: umol/L
+    unit_alternatives: {mg/dL: {scale: 17.1, offset: 0}}
+    hard_range: [0, 1200]
+    plausible_range: [1, 600]
+    source: laboratory
+    time_reference: specimen collection time
+    availability: {basis: source_time, lag_minutes: 240}
+    expected_interval_hours: 24
+    required: false
+    protocol_status: core
+  - name: glucose
+    label: Glucose
+    entity: laboratory
+    category: chemistry
+    type: float
+    unit: mmol/L
+    unit_alternatives: {mg/dL: {scale: 0.0555, offset: 0}}
+    hard_range: [0.3, 100]
+    plausible_range: [2, 40]
+    source: laboratory / point of care
+    time_reference: specimen collection time
+    availability: {basis: source_time, lag_minutes: 30}
+    expected_interval_hours: 6
+    required: false
+    protocol_status: core
+  - name: magnesium
+    label: Magnesium
+    entity: laboratory
+    category: chemistry
+    type: float
+    unit: mmol/L
+    unit_alternatives: {mg/dL: {scale: 0.4114, offset: 0}}
+    hard_range: [0.1, 6]
+    plausible_range: [0.3, 3]
+    source: laboratory
+    time_reference: specimen collection time
+    availability: {basis: source_time, lag_minutes: 240}
+    expected_interval_hours: 24
+    required: false
+    protocol_status: core
+  - name: phosphate
+    label: Phosphate
+    entity: laboratory
+    category: chemistry
+    type: float
+    unit: mmol/L
+    unit_alternatives: {mg/dL: {scale: 0.3229, offset: 0}}
+    hard_range: [0.1, 8]
+    plausible_range: [0.3, 5]
+    source: laboratory
+    time_reference: specimen collection time
+    availability: {basis: source_time, lag_minutes: 240}
+    expected_interval_hours: 24
+    required: false
+    protocol_status: core
+  - name: troponin_i
+    label: Troponin I (high-sensitivity)
+    entity: laboratory
+    category: chemistry
+    type: float
+    unit: ng/L
+    unit_alternatives: {ng/mL: {scale: 1000, offset: 0}}
+    hard_range: [0, 500000]
+    plausible_range: [0, 50000]
+    source: laboratory
+    time_reference: specimen collection time
+    availability: {basis: source_time, lag_minutes: 120}
+    expected_interval_hours: null
+    required: false
+    protocol_status: core
+  - name: hematocrit
+    label: Haematocrit
+    entity: laboratory
+    category: haematology
+    type: float
+    unit: pct
+    unit_alternatives: {L/L: {scale: 100, offset: 0}}
+    hard_range: [5, 80]
+    plausible_range: [12, 65]
+    source: laboratory
+    time_reference: specimen collection time
+    availability: {basis: source_time, lag_minutes: 120}
+    expected_interval_hours: 24
+    required: false
+    protocol_status: core
+    aliases: [hct, haematocrit]
+  - name: haemoglobin
+    label: Haemoglobin
+    entity: laboratory
+    category: haematology
+    type: float
+    unit: g/L
+    unit_alternatives: {g/dL: {scale: 10, offset: 0}}
+    hard_range: [20, 260]
+    plausible_range: [40, 200]
+    source: laboratory
+    time_reference: specimen collection time
+    availability: {basis: source_time, lag_minutes: 120}
+    expected_interval_hours: 24
+    required: true
+    protocol_status: core
+    aliases: [hb, hemoglobin, hgb]
+  - name: ptt
+    label: Partial thromboplastin time (aPTT)
+    entity: laboratory
+    category: coagulation
+    type: float
+    unit: s
+    hard_range: [5, 250]
+    plausible_range: [15, 150]
+    source: laboratory
+    time_reference: specimen collection time
+    availability: {basis: source_time, lag_minutes: 120}
+    expected_interval_hours: 24
+    required: false
+    protocol_status: core
+    aliases: [aptt]
+  - name: wbc
+    label: White blood cell count
+    entity: laboratory
+    category: haematology
+    type: float
+    unit: 10^9/L
+    unit_alternatives: {10^3/uL: {scale: 1, offset: 0}}
+    hard_range: [0, 600]
+    plausible_range: [0.3, 100]
+    source: laboratory
+    time_reference: specimen collection time
+    availability: {basis: source_time, lag_minutes: 120}
+    expected_interval_hours: 24
+    required: true
+    protocol_status: core
+    aliases: [leukocytes, white_cell_count]
+  - name: platelets
+    label: Platelet count
+    entity: laboratory
+    category: haematology
+    type: float
+    unit: 10^9/L
+    unit_alternatives: {10^3/uL: {scale: 1, offset: 0}}
+    hard_range: [0, 3000]
+    plausible_range: [5, 1500]
+    source: laboratory
+    time_reference: specimen collection time
+    availability: {basis: source_time, lag_minutes: 120}
+    expected_interval_hours: 24
+    required: true
+    protocol_status: core
+    aliases: [plt]
+  - name: crp
+    label: C-reactive protein
+    entity: laboratory
+    category: inflammation
+    type: float
+    unit: mg/L
+    unit_alternatives: {mg/dL: {scale: 10, offset: 0}}
+    hard_range: [0, 1000]
+    plausible_range: [0, 500]
+    source: laboratory
+    time_reference: specimen collection time
+    availability: {basis: source_time, lag_minutes: 240}
+    expected_interval_hours: 24
+    required: false
+    protocol_status: optional
+  - name: procalcitonin
+    label: Procalcitonin
+    entity: laboratory
+    category: inflammation
+    type: float
+    unit: ng/mL
+    hard_range: [0, 1000]
+    plausible_range: [0, 200]
+    source: laboratory
+    time_reference: specimen collection time
+    availability: {basis: source_time, lag_minutes: 240}
+    expected_interval_hours: null
+    required: false
+    protocol_status: optional
+    aliases: [pct_lab]
+  # ----------------------------------------------------------- baseline
+  - name: age_years
+    label: Age at enrolment
+    entity: patient
+    category: demographic
+    type: int
+    unit: years
+    hard_range: [0, 120]
+    plausible_range: [18, 105]
+    source: case report form (date of birth is NOT stored)
+    time_reference: enrolment date
+    availability: {basis: event_time, lag_minutes: 0}
+    required: true
+    protocol_status: core
+  - name: sex
+    label: Sex
+    entity: patient
+    category: demographic
+    type: category
+    allowed_values: [female, male, other, unknown]
+    source: case report form
+    time_reference: enrolment
+    availability: {basis: event_time, lag_minutes: 0}
+    required: true
+    protocol_status: core
+  - name: bmi
+    label: Body mass index
+    entity: patient
+    category: demographic
+    type: float
+    unit: kg/m2
+    hard_range: [8, 90]
+    plausible_range: [13, 60]
+    source: case report form
+    time_reference: enrolment
+    availability: {basis: event_time, lag_minutes: 0}
+    required: false
+    protocol_status: core
+  - name: diabetes
+    label: Diabetes mellitus
+    entity: patient
+    category: comorbidity
+    type: bool
+    source: case report form / EHR problem list
+    time_reference: enrolment
+    availability: {basis: event_time, lag_minutes: 0}
+    required: true
+    protocol_status: core
+  - name: chronic_kidney_disease
+    label: Chronic kidney disease
+    entity: patient
+    category: comorbidity
+    type: bool
+    source: case report form
+    time_reference: enrolment
+    availability: {basis: event_time, lag_minutes: 0}
+    required: true
+    protocol_status: core
+  - name: on_dialysis
+    label: Receiving haemodialysis at enrolment
+    entity: patient
+    category: comorbidity
+    type: bool
+    source: case report form
+    time_reference: enrolment
+    availability: {basis: event_time, lag_minutes: 0}
+    required: true
+    protocol_status: core
+  - name: immunosuppressed
+    label: Immunosuppression (drugs or condition)
+    entity: patient
+    category: comorbidity
+    type: bool
+    source: case report form
+    time_reference: enrolment
+    availability: {basis: event_time, lag_minutes: 0}
+    required: true
+    protocol_status: core
+  # ------------------------------------------------- exit-site assessment
+  - name: erythema_mm
+    label: Exit-site erythema (largest diameter)
+    entity: assessment
+    category: exit_site
+    type: float
+    unit: mm
+    hard_range: [0, 300]
+    plausible_range: [0, 100]
+    source: bedside assessment (study CRF)
+    time_reference: assessment time
+    availability: {basis: event_time, lag_minutes: 0}
+    expected_interval_hours: 24
+    required: true
+    protocol_status: core
+  - name: induration_mm
+    label: Exit-site induration (largest diameter)
+    entity: assessment
+    category: exit_site
+    type: float
+    unit: mm
+    hard_range: [0, 300]
+    plausible_range: [0, 100]
+    source: bedside assessment
+    time_reference: assessment time
+    availability: {basis: event_time, lag_minutes: 0}
+    expected_interval_hours: 24
+    required: true
+    protocol_status: core
+  - name: tenderness
+    label: Exit-site tenderness
+    entity: assessment
+    category: exit_site
+    type: bool
+    source: bedside assessment
+    time_reference: assessment time
+    availability: {basis: event_time, lag_minutes: 0}
+    required: true
+    protocol_status: core
+  - name: purulent_discharge
+    label: Purulent discharge at exit site
+    entity: assessment
+    category: exit_site
+    type: bool
+    source: bedside assessment
+    time_reference: assessment time
+    availability: {basis: event_time, lag_minutes: 0}
+    required: true
+    protocol_status: core
+  # ------------------------------------------------- image acquisition
+  - name: ambient_temperature_c
+    label: Ambient room temperature at acquisition
+    entity: image
+    category: acquisition
+    type: float
+    unit: degC
+    hard_range: [0, 50]
+    plausible_range: [17, 32]
+    source: room thermometer / hygrometer
+    time_reference: image acquisition time
+    availability: {basis: event_time, lag_minutes: 0}
+    required: true
+    protocol_status: core
+  - name: relative_humidity_pct
+    label: Relative humidity at acquisition
+    entity: image
+    category: acquisition
+    type: float
+    unit: pct
+    hard_range: [0, 100]
+    plausible_range: [15, 85]
+    source: hygrometer
+    time_reference: image acquisition time
+    availability: {basis: event_time, lag_minutes: 0}
+    required: false
+    protocol_status: core
+  - name: distance_cm
+    label: Camera-to-skin distance
+    entity: image
+    category: acquisition
+    type: float
+    unit: cm
+    hard_range: [1, 500]
+    plausible_range: [15, 100]
+    source: operator (protocol target distance)
+    time_reference: image acquisition time
+    availability: {basis: event_time, lag_minutes: 0}
+    required: true
+    protocol_status: core
+  - name: emissivity
+    label: Emissivity setting
+    entity: image
+    category: acquisition
+    type: float
+    unit: ratio
+    hard_range: [0.1, 1.0]
+    plausible_range: [0.95, 0.99]
+    source: camera settings (human skin approx. 0.98)
+    time_reference: image acquisition time
+    availability: {basis: event_time, lag_minutes: 0}
+    required: true
+    protocol_status: core

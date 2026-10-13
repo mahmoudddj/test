@@ -1,0 +1,4 @@
+site_code,screening_number,screening_date,eligible,outcome,exclusion_reason
+S01,SCR00001,2026-03-01,true,enrolled,
+S01,SCR00002,2026-03-01,false,not_eligible,expected catheter dwell < 72 h
+S01,SCR00003,2026-03-02,true,declined,declined consent

@@ -1,0 +1,144 @@
+# IRT-CRI research platform - local / staging deployment.
+#
+#   docker compose up --build            # MVP: PostgreSQL + MinIO + API (:8000) + web UI (:3000)
+#   docker compose --profile demo up     # additionally loads 20 SYNTHETIC patients
+#
+# The defaults below are for a LOCAL DEVELOPMENT MACHINE ONLY (all ports bound to 127.0.0.1).
+# For any shared/staging/production host: cp infrastructure/.env.example .env and set strong secrets.
+# Optional services: --profile ml (training container), --profile tracking (MLflow).
+name: irtcri
+
+services:
+  postgres:
+    image: postgres:16.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-irtcri}
+      POSTGRES_USER: ${POSTGRES_USER:-irtcri}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev-only-insecure-pg}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-irtcri}"]
+      interval: 10s
+      retries: 5
+    networks: [backend]
+
+  minio:
+    image: minio/minio:RELEASE.2024-08-17T01-24-54Z
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-devminioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-dev-only-insecure-minio}
+    volumes:
+      - miniodata:/data
+    ports:
+      - "127.0.0.1:9001:9001"     # admin console bound to localhost only
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      retries: 5
+    networks: [backend]
+
+  minio-init:
+    image: minio/mc:RELEASE.2024-08-17T11-33-50Z
+    depends_on:
+      minio: {condition: service_healthy}
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-devminioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-dev-only-insecure-minio}
+      APP_S3_ACCESS_KEY: ${IRTCRI_S3_ACCESS_KEY:-irtcri-app}
+      APP_S3_SECRET_KEY: ${IRTCRI_S3_SECRET_KEY:-dev-only-insecure-s3}
+      RAW_RETENTION_DAYS: ${RAW_RETENTION_DAYS:-5475}
+    entrypoint: ["/bin/sh", "/init/init-buckets.sh"]
+    volumes:
+      - ./infrastructure/minio:/init:ro
+    networks: [backend]
+
+  api:
+    image: irtcri-api:local
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.api
+      target: base
+      args: {GIT_COMMIT: "${GIT_COMMIT:-unknown}"}
+    restart: unless-stopped
+    depends_on:
+      postgres: {condition: service_healthy}
+      minio-init: {condition: service_completed_successfully}
+    environment:
+      IRTCRI_ENV: ${IRTCRI_ENV:-staging}
+      IRTCRI_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-irtcri}:${POSTGRES_PASSWORD:-dev-only-insecure-pg}@postgres:5432/${POSTGRES_DB:-irtcri}
+      IRTCRI_OBJECT_STORE: s3
+      IRTCRI_S3_ENDPOINT_URL: http://minio:9000
+      IRTCRI_S3_ACCESS_KEY: ${IRTCRI_S3_ACCESS_KEY:-irtcri-app}
+      IRTCRI_S3_SECRET_KEY: ${IRTCRI_S3_SECRET_KEY:-dev-only-insecure-s3}
+      IRTCRI_BOOTSTRAP_ADMIN_TOKEN: ${IRTCRI_BOOTSTRAP_ADMIN_TOKEN:-dev-bootstrap-token}
+      IRTCRI_CORS_ORIGINS: '["${PUBLIC_UI_ORIGIN:-http://localhost:3000}"]'
+      IRTCRI_PROSPECTIVE_ALERTS_ENABLED: "false"
+    ports:
+      - "127.0.0.1:8000:8000"
+    networks: [backend, frontend]
+
+  frontend:
+    image: irtcri-frontend:local
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_BASE: ${PUBLIC_API_BASE:-http://localhost:8000}
+    restart: unless-stopped
+    depends_on: [api]
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks: [frontend]
+
+  demo-data:
+    profiles: [demo]
+    image: irtcri-api:local
+    depends_on:
+      api: {condition: service_started}
+    environment:
+      IRTCRI_ENV: ${IRTCRI_ENV:-staging}
+      IRTCRI_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-irtcri}:${POSTGRES_PASSWORD:-dev-only-insecure-pg}@postgres:5432/${POSTGRES_DB:-irtcri}
+      IRTCRI_OBJECT_STORE: s3
+      IRTCRI_S3_ENDPOINT_URL: http://minio:9000
+      IRTCRI_S3_ACCESS_KEY: ${IRTCRI_S3_ACCESS_KEY:-irtcri-app}
+      IRTCRI_S3_SECRET_KEY: ${IRTCRI_S3_SECRET_KEY:-dev-only-insecure-s3}
+    command: ["sh", "-c", "sleep 15 && alembic upgrade head && irtcri synthetic --n-patients 20"]
+    networks: [backend]
+
+  ml:
+    profiles: [ml]
+    build: {context: ., dockerfile: infrastructure/docker/Dockerfile.api, target: ml}
+    environment:
+      IRTCRI_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-irtcri}:${POSTGRES_PASSWORD:-dev-only-insecure-pg}@postgres:5432/${POSTGRES_DB:-irtcri}
+      IRTCRI_OBJECT_STORE: s3
+      IRTCRI_S3_ENDPOINT_URL: http://minio:9000
+      IRTCRI_S3_ACCESS_KEY: ${IRTCRI_S3_ACCESS_KEY:-irtcri-app}
+      IRTCRI_S3_SECRET_KEY: ${IRTCRI_S3_SECRET_KEY:-dev-only-insecure-s3}
+      IRTCRI_DATA_DIR: /work/data
+      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-}
+    volumes:
+      - mlwork:/work
+    networks: [backend]
+
+  mlflow:
+    profiles: [tracking]
+    image: ghcr.io/mlflow/mlflow:v2.16.2
+    command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri sqlite:////mlflow/mlflow.db --artifacts-destination /mlflow/artifacts
+    volumes:
+      - mlflowdata:/mlflow
+    ports:
+      - "127.0.0.1:5000:5000"
+    networks: [backend]
+
+volumes:
+  pgdata: {}
+  miniodata: {}
+  mlwork: {}
+  mlflowdata: {}
+
+networks:
+  backend: {internal: false}
+  frontend: {}

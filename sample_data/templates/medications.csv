@@ -1,0 +1,2 @@
+study_id,episode_code,drug_name,atc_code,route,dose,dose_unit,frequency,indication,start_time,end_time
+S01-0001,S01-0001-C1,vancomycin,J01XA01,iv,1000,mg,q12h,empirical,2026-03-04 10:00,2026-03-14 10:00

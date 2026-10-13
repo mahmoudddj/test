@@ -1,0 +1,51 @@
+# Dataset specification for the primary early-warning analysis.
+# Changing ANY field requires a new `version`. Locked versions cannot be rebuilt.
+name: irtcri_early_warning
+version: "0.1.0"
+description: >
+  One sample per eligible thermal image (prediction time = acquisition time).
+  Label = conventional clinical recognition of CRI/ESI within the next 48 h.
+
+cohort:
+  sites: all                      # or a list of site codes
+  catheter_types: [CVC, HD_CVC, PORT, PICC, OTHER]
+  exclude_withdrawn_without_data_consent: true
+  min_follow_up_hours: 12
+  require_outcome: true
+
+images:
+  qc_status: [PASS, WARNING]      # effective (override-aware) QC status
+  views: [frontal]
+  require_radiometric: true
+  derive_thermal:
+    size: 256
+    normalization: fixed_window
+    window_c: [20.0, 40.0]
+  derive_rgb:
+    size: 256
+
+labels:
+  mode: early_warning
+  horizon_hours: 48
+  pre_horizon_policy: negative
+  include_post_recognition: false
+  require_adjudicated: false      # set true for the locked primary analysis
+
+features:
+  lookback_hours: 24
+  variables: [temperature_c, heart_rate, respiratory_rate, sbp, spo2, wbc, crp, platelets, creatinine, lactate]
+  aggregations: [last, mean, min, max, count, slope, time_since_last_h]
+  missing_indicators: true
+  baseline: [age_years, sex, diabetes, on_dialysis, immunosuppressed, bmi]
+  episode: [catheter_type, tunnelled, hours_since_insertion]
+  thermal_summary: true           # image-level summary stats (t_max, t_mean, t_max - ambient)
+  thermal_longitudinal: true      # change vs the episode's own early baseline and vs previous image (prior images only)
+  thermal_baseline_hours: 24
+  antibiotics_in_lookback: true   # exposure indicator (available at prediction time)
+
+split:
+  seed: 20260301
+  test_fraction: 0.2
+  val_fraction: 0.2
+  stratify: [has_event, site_id]
+  holdout_sites: []               # e.g. [S04] for external (site-level) validation

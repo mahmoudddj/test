@@ -1,0 +1,3 @@
+study_id,episode_code,specimen_type,event_time,source_time,growth,organism,quantitative_cfu,time_to_positivity_h
+S01-0001,S01-0001-C1,exit_site_swab,2026-03-04 09:00,2026-03-06 01:00,positive,Staphylococcus aureus,,
+S01-0001,S01-0001-C1,blood_peripheral,2026-03-04 09:05,2026-03-09 09:00,negative,,,

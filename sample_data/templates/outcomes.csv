@@ -1,0 +1,2 @@
+study_id,episode_code,outcome_type,clinical_recognition_time,onset_time_reference,treatment_start_time,status,criteria_version,catheter_removed_due_to_infection
+S01-0001,S01-0001-C1,exit_site_infection,2026-03-04 08:00,2026-03-03 20:00,2026-03-04 10:00,provisional,IRT-CRI-DEF-1.0,false

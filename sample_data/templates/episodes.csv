@@ -1,0 +1,2 @@
+study_id,catheter_type,insertion_site,tunnelled,lumens,insertion_time,inserted_in_department,imaging_interval_hours,removal_time,removal_reason
+S01-0001,CVC,internal_jugular_right,false,3,2026-03-01 09:30,ICU,12,,

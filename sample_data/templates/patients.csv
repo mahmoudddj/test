@@ -1,0 +1,2 @@
+site_code,screening_number,enrolment_date,consent_version,age_years,sex,bmi,diabetes,chronic_kidney_disease,on_dialysis,immunosuppressed,comorbidities,skin_phototype
+S01,SCR00001,2026-03-01,1.0,67,female,27.4,true,false,false,false,I10|E11,III

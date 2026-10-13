@@ -1,0 +1,16 @@
+{
+  "episode_id": "S01-0001-C1",
+  "study_id": "S01-0001",
+  "modality": "thermal",
+  "acquisition_time": "2026-03-02 08:05",
+  "view": "frontal",
+  "distance_cm": 40,
+  "ambient_temperature_c": 22.8,
+  "relative_humidity_pct": 41,
+  "emissivity": 0.98,
+  "camera_make": "FLIR",
+  "camera_model": "C5",
+  "device_id": "S01-CAM1",
+  "operator_id": "S01-OP2",
+  "acquisition_protocol_version": "IRT-CRI-ACQ-1.0"
+}

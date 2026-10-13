@@ -1,0 +1,45 @@
+# Blinding profiles for the annotation tool. A profile is fixed per
+# assignment and stored with every annotation (so analyses can stratify by
+# the information readers had). Model predictions are NEVER shown to readers
+# generating reference labels.
+version: "blind-1.0"
+profiles:
+  image_only:
+    description: Reader sees only the images and catheter location. Primary profile for image-level reference labels.
+    show_rgb: true
+    mask_identity: true            # study_id/episode replaced by an opaque task code
+    show_acquisition_time: false   # time since insertion also hidden
+    show_catheter_info: true       # type + insertion site (needed for orientation)
+    show_clinical_before_image_hours: 0
+    show_assessments: false
+    show_microbiology: false
+    show_antibiotics: false
+    show_outcome: false
+    show_other_annotations: false
+    show_model_predictions: false
+  image_plus_clinical_context:
+    description: Images plus vitals/labs available BEFORE acquisition (look-back window). No microbiology, antibiotics or outcomes.
+    show_rgb: true
+    mask_identity: true
+    show_acquisition_time: true
+    show_catheter_info: true
+    show_clinical_before_image_hours: 24
+    show_assessments: false
+    show_microbiology: false
+    show_antibiotics: false
+    show_outcome: false
+    show_other_annotations: false
+    show_model_predictions: false
+  adjudication:
+    description: Adjudicator / endpoint committee - full clinical context and both readers' annotations.
+    show_rgb: true
+    mask_identity: false
+    show_acquisition_time: true
+    show_catheter_info: true
+    show_clinical_before_image_hours: 168
+    show_assessments: true
+    show_microbiology: true
+    show_antibiotics: true
+    show_outcome: true
+    show_other_annotations: true
+    show_model_predictions: false

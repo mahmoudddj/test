@@ -1,0 +1,31 @@
+# syntax=docker/dockerfile:1.7
+FROM python:3.12-slim AS base
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
+RUN groupadd -r app && useradd -r -g app -m app
+WORKDIR /app
+COPY requirements ./requirements
+# Pinned, reproducible dependency set (see docs/REPRODUCIBILITY.md).
+# Behind a TLS-intercepting (hospital) proxy, pass its CA as a BuildKit secret - it is NOT stored in the image:
+#   docker build --secret id=pip_ca,src=/path/ca.crt --build-arg HTTPS_PROXY=... .
+RUN --mount=type=secret,id=pip_ca,required=false \
+    if [ -f /run/secrets/pip_ca ]; then export PIP_CERT=/run/secrets/pip_ca; fi; \
+    pip install -r requirements/lock-core.txt
+COPY pyproject.toml README.md ./
+COPY src ./src
+RUN pip install --no-deps .
+COPY configs ./configs
+COPY migrations ./migrations
+COPY alembic.ini ./
+ARG GIT_COMMIT=unknown
+ENV IRTCRI_CONFIG_DIR=/app/configs IRTCRI_GIT_COMMIT=$GIT_COMMIT
+USER app
+EXPOSE 8000
+CMD ["sh", "-c", "alembic upgrade head && uvicorn irtcri.hub.app:app --host 0.0.0.0 --port 8000 --proxy-headers --workers 2"]
+
+FROM base AS ml
+USER root
+RUN --mount=type=secret,id=pip_ca,required=false \
+    if [ -f /run/secrets/pip_ca ]; then export PIP_CERT=/run/secrets/pip_ca; fi; \
+    pip install --index-url https://download.pytorch.org/whl/cpu torch==2.14.1 torchvision && pip install "mlflow>=2.10"
+USER app
+CMD ["irtcri", "--help"]

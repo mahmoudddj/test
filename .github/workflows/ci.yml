@@ -1,0 +1,30 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: {POSTGRES_USER: irtcri, POSTGRES_PASSWORD: ci-only, POSTGRES_DB: irtcri_test}
+        ports: ["5432:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+      - run: pip install -e ".[dev,postgres,s3]" moto
+      - run: ruff check src tests
+      - run: pytest
+      - run: alembic upgrade head && alembic check
+        env: {IRTCRI_DATABASE_URL: "postgresql+psycopg://irtcri:ci-only@localhost/irtcri_test"}
+      - run: pytest tests/test_hub_api.py tests/test_db_and_integrations.py
+        env: {IRTCRI_TEST_DATABASE_URL: "postgresql+psycopg://irtcri:ci-only@localhost/irtcri_test"}
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "22"}
+      - run: cd frontend && npm ci && npm run typecheck && npm run build

@@ -1,0 +1,26 @@
+# Statistical configuration for a manuscript analysis. Stored verbatim (and hashed) in the
+# analysis registry. DRAFT - to be aligned with the signed Statistical Analysis Plan (SAP).
+sap_version: "0.1-draft"
+primary_endpoint:
+  description: Lead time of the first research alert relative to conventional clinical recognition of CRI/ESI
+  unit_of_analysis: catheter episode
+  alert_rule: {consecutive: 1, max_lead_h: 72, grace_h: 0, refractory_h: 24}
+  lead_time_targets_h: [0, 6, 12, 24, 48]
+  kpi_targets_not_used_for_selection: {lead_time_h: 6, precision: 0.85, recall: 0.85}
+threshold:
+  source: validation split (model card); never re-selected on test data
+uncertainty:
+  method: percentile bootstrap resampling patients
+  n_boot: 2000
+  seed: 20260301
+secondary:
+  - image-level sensitivity/specificity/PPV/NPV/F1/AUROC/AUPRC/Brier (patient-clustered CIs)
+  - calibration slope and calibration-in-the-large
+  - false alerts per catheter-day
+  - Kaplan-Meier time to recognition by catheter type (log-rank)
+  - Cox PH (cluster-robust SE by patient)
+subgroups:
+  - {variable: site_code, type: secondary}
+  - {variable: catheter_type, type: secondary}
+  - {variable: skin_phototype, type: exploratory}
+missing_data: complete-case for outcomes (outcomes are never imputed); predictors median-imputed with indicators

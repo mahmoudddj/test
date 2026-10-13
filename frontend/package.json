@@ -1,0 +1,23 @@
+{
+  "name": "irtcri-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "IRT-in-CRI research web UI: data-quality dashboard, pilot timeline, blinded annotation.",
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "16.4.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.0",
+    "@types/react": "19.1.2",
+    "@types/react-dom": "19.1.2",
+    "typescript": "5.8.3"
+  }
+}

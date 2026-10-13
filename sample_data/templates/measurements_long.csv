@@ -1,0 +1,4 @@
+study_id,episode_code,variable,value,unit,event_time,source_time,missing_reason
+S01-0001,S01-0001-C1,creatinine,1.1,mg/dL,2026-03-01 06:00,2026-03-01 08:15,
+S01-0001,S01-0001-C1,wbc,9.8,10^9/L,2026-03-01 06:00,2026-03-01 07:40,
+S01-0001,S01-0001-C1,lactate,,,2026-03-01 06:00,,ND

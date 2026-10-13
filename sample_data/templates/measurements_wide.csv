@@ -1,0 +1,3 @@
+study_id,episode_code,event_time,temperature_c,heart_rate,sbp,dbp,respiratory_rate,spo2,fio2 [pct]
+S01-0001,S01-0001-C1,2026-03-01 12:00,37.1,88,128,72,18,96,28
+S01-0001,S01-0001-C1,2026-03-01 18:00,37.4,92,121,70,19,95,ND

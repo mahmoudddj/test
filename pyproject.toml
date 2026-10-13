@@ -1,0 +1,63 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "irtcri"
+version = "0.1.0"
+description = "IRT-in-CRI Study research platform: data hub, imaging QC, annotation, dataset builder, ML, evaluation and monitoring."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary - IRT-in-CRI Study consortium" }
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
+    "pydantic>=2.6",
+    "pydantic-settings>=2.2",
+    "python-multipart>=0.0.9",
+    "pyyaml>=6.0",
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "pyarrow>=15",
+    "openpyxl>=3.1",
+    "pillow>=10.2",
+    "scipy>=1.11",
+    "scikit-learn>=1.4",
+    "statsmodels>=0.14",
+    "matplotlib>=3.8",
+]
+
+[project.optional-dependencies]
+postgres = ["psycopg[binary]>=3.1"]
+s3 = ["boto3>=1.34"]
+ml = ["torch>=2.2", "torchvision>=0.17"]
+tracking = ["mlflow>=2.10"]
+explain = ["shap>=0.45"]
+dev = ["pytest>=8", "httpx>=0.27", "ruff>=0.4"]
+
+[project.scripts]
+irtcri = "irtcri.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = [
+    "ml: tests that need torch (skipped automatically when torch is unavailable)",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B"]
+ignore = ["B008", "E741"]   # FastAPI Depends() defaults; O/E/V matrix names in statistics code
+
+[tool.ruff.lint.isort]
+known-first-party = ["irtcri", "conftest"]

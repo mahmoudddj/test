@@ -1,0 +1,8 @@
+# ViT is included for completeness. With ~100 patients it is very likely to overfit;
+# only run it after CNN baselines and with strong pretraining. Grad-CAM is not defined for ViT.
+name: f1_thermal_vit_b16
+family: F1
+dataset_root: var/data/datasets/irtcri_early_warning/0.1.0
+model: {kind: torch, backbone: vit_b_16, pretrained: true, input_size: 224, dropout: 0.3}
+training: {seed: 42, epochs: 20, batch_size: 8, lr: 0.00003, imbalance: pos_weight}
+threshold: {rule: target_sensitivity, target: 0.85}
