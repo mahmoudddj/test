@@ -82,7 +82,7 @@ services:
       IRTCRI_CORS_ORIGINS: '["${PUBLIC_UI_ORIGIN:-http://localhost:3000}"]'
       IRTCRI_PROSPECTIVE_ALERTS_ENABLED: "false"
     ports:
-      - "127.0.0.1:8000:8000"
+      - "${BIND_ADDRESS:-127.0.0.1}:8000:8000"
     networks: [backend, frontend]
 
   frontend:
@@ -94,7 +94,7 @@ services:
     restart: unless-stopped
     depends_on: [api]
     ports:
-      - "127.0.0.1:3000:3000"
+      - "${BIND_ADDRESS:-127.0.0.1}:3000:3000"
     networks: [frontend]
 
   demo-data:
