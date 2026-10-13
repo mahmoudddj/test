@@ -58,6 +58,38 @@ def create_app() -> FastAPI:
     def health():
         return {"status": "ok", "version": __version__, "env": settings.env}
 
+    @app.get("/health/ready", tags=["meta"], summary="Dependency readiness (no data, no auth)")
+    def ready():
+        """ok/fail per dependency, used by scripts/verify_deployment.sh and orchestrators."""
+        from fastapi.responses import JSONResponse
+        from sqlalchemy import text
+
+        from irtcri.db.session import get_engine
+        from irtcri.imaging.repository import get_xnat_repository
+        from irtcri.imaging.storage import get_object_store, raw_bucket
+        checks = {}
+        try:
+            with get_engine().connect() as c:
+                c.execute(text("SELECT 1"))
+            checks["database"] = "ok"
+        except Exception as e:
+            checks["database"] = f"fail: {type(e).__name__}"
+        try:
+            get_object_store().list(raw_bucket(), "__readiness_probe__/")
+            checks["object_store"] = "ok"
+        except Exception as e:
+            checks["object_store"] = f"fail: {type(e).__name__}"
+        if settings.xnat_enabled:
+            try:
+                get_xnat_repository().check_project()
+                checks["xnat"] = "ok"
+            except Exception as e:
+                checks["xnat"] = f"fail: {type(e).__name__}"
+        else:
+            checks["xnat"] = "disabled"
+        ok = all(v in ("ok", "disabled") for v in checks.values())
+        return JSONResponse(status_code=200 if ok else 503, content={"ready": ok, "checks": checks})
+
     @app.get("/api/v1/meta", tags=["meta"])
     def meta():
         from irtcri.schemas.dictionary import load_dictionary

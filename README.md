@@ -27,7 +27,34 @@ Screenshots (SYNTHETIC data): [DQ dashboard](docs/screenshots/01_data_quality_da
 [blinded annotation](docs/screenshots/03_blinded_annotation.png) ·
 [adjudication](docs/screenshots/04_adjudication.png)
 
-## Quick start
+## Run it — simplest way (any computer or server with Docker)
+
+1. Install **Docker Desktop** (Windows/Mac) or **Docker Engine + Compose** (Linux) and **git**.
+2. Get the code:
+   `git clone https://github.com/mahmoudddj/test.git irtcri && cd irtcri`
+3. Settings: for a quick look on your own computer, nothing is needed (safe local defaults are built in).
+   On a shared server: `cp .env.example .env`, then replace every `change-me` value.
+4. Start everything, including 20 SYNTHETIC demo patients:
+   `docker compose --profile demo up -d --build`   (first run takes ~5–10 min)
+5. Create the first administrator (once). Copy the `token` it prints and keep it safe:
+   `curl -X POST "http://localhost:8000/api/v1/auth/bootstrap?username=admin" -H "X-Bootstrap-Token: dev-bootstrap-token"`
+   (on a server, use the `IRTCRI_BOOTSTRAP_ADMIN_TOKEN` value from your `.env`)
+6. Check it works: `IRTCRI_TOKEN=<your token> scripts/verify_deployment.sh`
+7. Open **http://localhost:3000** and paste the token to sign in.
+
+| What | Address |
+|---|---|
+| Web app (dashboards, timeline, annotation) | http://localhost:3000 |
+| API documentation | http://localhost:8000/docs |
+| Health / readiness | http://localhost:8000/health · http://localhost:8000/health/ready |
+| MinIO console (image storage admin) | http://localhost:9001 |
+| MLflow (only if started with `--profile tracking`) | http://localhost:5000 |
+| XNAT | only if `XNAT_ENABLED=true`; it runs on its own server (see docs/XNAT_INTEGRATION.md) |
+
+Create other users (data managers, site researchers, annotators...) in the API docs page with
+`POST /api/v1/users` while signed in as admin. Stop: `docker compose down` (data are kept).
+
+## Quick start for developers
 
 ### 1. Laptop: everything on SYNTHETIC data (no Docker)
 ```bash

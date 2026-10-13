@@ -150,7 +150,10 @@ irtcri xnat-pull --commit                                   # register them (nee
 irtcri qc-worker                                            # QC documents -> XNAT QC resource (idempotent)
 irtcri replay <run_dir>                                     # predictions; JSON + Grad-CAM published when enabled
 irtcri xnat-publish-annotations
-XNAT_TEST_URL=... pytest tests/integration -m xnat_live     # against a disposable XNAT test project only
+# live validation (disposable TEST project only):
+export XNAT_TEST_URL=https://xnat-test.example.org XNAT_TEST_USERNAME=irtcri-test XNAT_TEST_PASSWORD='***' \
+       XNAT_TEST_PROJECT=IRTCRI_TEST XNAT_TEST_CONFIRM=test-project-only   # optional: XNAT_TEST_CLEANUP=yes
+scripts/run_xnat_live_test.sh        # = pytest tests/integration/test_xnat_live.py -v -m xnat_live
 ```
 
 Which artefact kinds are published is controlled by `IRTCRI_XNAT_PUBLISH` (default `["companions","qc","gradcam","prediction","annotation"]`). Every publication is recorded in `external_resource` with backend, entity, kind, URI and SHA-256.

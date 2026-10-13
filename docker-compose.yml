@@ -4,7 +4,7 @@
 #   docker compose --profile demo up     # additionally loads 20 SYNTHETIC patients
 #
 # The defaults below are for a LOCAL DEVELOPMENT MACHINE ONLY (all ports bound to 127.0.0.1).
-# For any shared/staging/production host: cp infrastructure/.env.example .env and set strong secrets.
+# For any shared/staging/production host: cp .env.example .env and set strong secrets.
 # Optional services: --profile ml (training container), --profile tracking (MLflow).
 name: irtcri
 
@@ -25,8 +25,10 @@ services:
     networks: [backend]
 
   minio:
-    # MinIO's community image distribution has changed; pin an image available to your registry/mirror
-    image: ${MINIO_IMAGE:-minio/minio:RELEASE.2024-08-17T01-24-54Z}
+    # minio/minio and minio/mc were removed from Docker Hub (MinIO stopped publishing community images).
+    # pgsty/minio is the maintained community build of the same MinIO server (AGPLv3). Override with
+    # MINIO_IMAGE / MC_IMAGE to use an institutional mirror or another S3-compatible server.
+    image: ${MINIO_IMAGE:-pgsty/minio:RELEASE.2026-08-04T00-00-00Z}
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -37,13 +39,14 @@ services:
     ports:
       - "127.0.0.1:9001:9001"     # admin console bound to localhost only
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
       interval: 10s
       retries: 5
     networks: [backend]
 
   minio-init:
-    image: ${MC_IMAGE:-minio/mc:RELEASE.2024-08-17T11-33-50Z}
+    # pgsty/mc publishes only "latest"; pinned by digest (mc RELEASE.2026-09-16) for reproducibility
+    image: ${MC_IMAGE:-pgsty/mc@sha256:cfc83108c3abb371f8fb84d99c1fdc88f8c237e022409b0081fb7c0a3be634dd}
     depends_on:
       minio: {condition: service_healthy}
     environment:
