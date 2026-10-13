@@ -19,7 +19,7 @@ TABLES: dict[str, type] = {
     "annotation": M.Annotation, "adjudication": M.Adjudication, "outcome": M.Outcome,
     "protocol_deviation": M.ProtocolDeviation, "data_query": M.DataQuery, "import_batch": M.ImportBatch,
     "model_prediction": M.ModelPrediction, "model_version": M.ModelVersion,
-    "analysis_record": M.AnalysisRecord,
+    "analysis_record": M.AnalysisRecord, "external_resource": M.ExternalResource,
 }
 # never exported from the hub
 SENSITIVE_COLUMNS = {"app_user": {"token_hash"}}

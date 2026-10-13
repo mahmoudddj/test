@@ -3,7 +3,7 @@
 # Usage: scripts/run_demo.sh [workdir] [n_patients]
 set -euo pipefail
 WORK=${1:-var/demo}
-N=${2:-60}
+N=${2:-20}
 mkdir -p "$WORK"
 export IRTCRI_DATABASE_URL="sqlite:///$WORK/hub.db"
 export IRTCRI_LOCAL_STORE_ROOT="$WORK/objects"
@@ -28,5 +28,6 @@ irtcri evaluate-test "$BEST" --confirm-final --n-boot 300
 CNN=$(ls -d "$RUNS"/smoke_f4_simplecnn/* | tail -1)
 irtcri replay "$CNN" --splits val --limit 200
 irtcri study-analysis "$DS" --out "$WORK/reports/study"
+irtcri xnat-check 2>/dev/null || echo "XNAT disabled (optional)"
 irtcri site-report S01 2026-02 --out "$WORK/reports/sites"
 echo "Demo complete. Start the API with: IRTCRI_DATABASE_URL=$IRTCRI_DATABASE_URL IRTCRI_LOCAL_STORE_ROOT=$IRTCRI_LOCAL_STORE_ROOT irtcri serve"

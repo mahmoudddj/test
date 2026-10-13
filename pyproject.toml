@@ -27,6 +27,7 @@ dependencies = [
     "scikit-learn>=1.4",
     "statsmodels>=0.14",
     "matplotlib>=3.8",
+    "httpx>=0.27",
 ]
 
 [project.optional-dependencies]
@@ -48,6 +49,7 @@ testpaths = ["tests"]
 addopts = "-q"
 markers = [
     "ml: tests that need torch (skipped automatically when torch is unavailable)",
+    "xnat_live: optional tests against a real XNAT server (need XNAT_TEST_URL)",
 ]
 
 [tool.ruff]

@@ -10,7 +10,7 @@ name: irtcri
 
 services:
   postgres:
-    image: postgres:16.4
+    image: ${POSTGRES_IMAGE:-postgres:16.4}
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-irtcri}
@@ -25,7 +25,8 @@ services:
     networks: [backend]
 
   minio:
-    image: minio/minio:RELEASE.2024-08-17T01-24-54Z
+    # MinIO's community image distribution has changed; pin an image available to your registry/mirror
+    image: ${MINIO_IMAGE:-minio/minio:RELEASE.2024-08-17T01-24-54Z}
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -42,7 +43,7 @@ services:
     networks: [backend]
 
   minio-init:
-    image: minio/mc:RELEASE.2024-08-17T11-33-50Z
+    image: ${MC_IMAGE:-minio/mc:RELEASE.2024-08-17T11-33-50Z}
     depends_on:
       minio: {condition: service_healthy}
     environment:

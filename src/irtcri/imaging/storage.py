@@ -25,6 +25,7 @@ class ObjectStore(Protocol):
     def put(self, bucket: str, key: str, data: bytes) -> str: ...
     def get(self, bucket: str, key: str) -> bytes: ...
     def exists(self, bucket: str, key: str) -> bool: ...
+    def list(self, bucket: str, prefix: str = "") -> list[str]: ...
 
 
 class LocalObjectStore:
@@ -63,6 +64,13 @@ class LocalObjectStore:
 
     def exists(self, bucket: str, key: str) -> bool:
         return self._path(bucket, key).exists()
+
+    def list(self, bucket: str, prefix: str = "") -> list[str]:
+        root = self.root / bucket
+        if not root.exists():
+            return []
+        return sorted(str(p.relative_to(root)) for p in root.rglob("*")
+                      if p.is_file() and not p.name.endswith(".part") and str(p.relative_to(root)).startswith(prefix))
 
 
 class S3ObjectStore:
@@ -105,6 +113,12 @@ class S3ObjectStore:
 
     def get(self, bucket: str, key: str) -> bytes:
         return self.client.get_object(Bucket=bucket, Key=key)["Body"].read()
+
+    def list(self, bucket: str, prefix: str = "") -> list[str]:
+        out = []
+        for page in self.client.get_paginator("list_objects_v2").paginate(Bucket=bucket, Prefix=prefix):
+            out += [o["Key"] for o in page.get("Contents", [])]
+        return out
 
 
 _store: ObjectStore | None = None

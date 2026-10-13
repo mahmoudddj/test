@@ -148,7 +148,8 @@ def build_dataset(session: Session, spec: str | Path | dict, out_root: str | Pat
     pairs = t["image_pair"][["thermal_image_id", "rgb_image_id"]]
     samples = th.rename(columns={"id": "thermal_image_id", "acquisition_time": "prediction_time"})[
         ["thermal_image_id", "patient_id", "episode_id", "site_id", "prediction_time", "view", "t_max", "t_mean",
-         "ambient_temperature_c", "qc_metrics", "eff_qc"]].merge(pairs, on="thermal_image_id", how="left")
+         "ambient_temperature_c", "qc_metrics", "eff_qc", "acquisition_id", "xnat_uri", "raw_sha256"]
+    ].merge(pairs, on="thermal_image_id", how="left")
     lc = LabelConfig(**spec["labels"])
     samples = label_samples(samples, oc, lc)
     for status, n in samples["label_status"].value_counts().items():
@@ -282,6 +283,11 @@ def build_dataset(session: Session, spec: str | Path | dict, out_root: str | Pat
                        "patient_level": float(pl["has_event"].mean()) if len(pl) else None,
                        "by_split": samples.groupby("split")["label"].mean().to_dict()},
         "split_fingerprint": split_fingerprint(assign),
+        "imaging_sources": {
+            "xnat_enabled": get_settings().xnat_enabled, "imaging_primary": get_settings().imaging_primary,
+            "images_in_xnat": int(samples["xnat_uri"].notna().sum()),
+            "note": "original files are read via the ImagingService (object store / XNAT) and verified "
+                    "against raw_sha256; training reads only the versioned derived arrays"},
         "preprocessing": preprocessing,
         "missingness_top": miss.head(15).to_dict("records"),
         "cohort_flow": flow.steps,

@@ -17,7 +17,7 @@ export default function Timeline({ episode, observations, antibiotics, microbiol
   const W = 1000;
   const x = (iso: string) => LEFT + ((Date.parse(iso) - t0) / (t1 - t0)) * (W - LEFT - 10);
   const lane = (i: number) => 20 + i * LANE_H;
-  const temps = useMemo(() => observations.filter((o) => o.variable === "temperature_c" && Date.parse(o.time) >= t0 && Date.parse(o.time) <= t1)
+  const temps = useMemo(() => observations.filter((o) => o.variable === "temperature_c" && o.value != null && Date.parse(o.time) >= t0 && Date.parse(o.time) <= t1)
     .sort((a, b) => Date.parse(a.time) - Date.parse(b.time)), [observations, t0, t1]);
   const preds = episode.predictions ?? [];
   const thr = preds[0]?.threshold ?? null;

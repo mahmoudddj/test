@@ -111,3 +111,11 @@ def test_audit_is_written_for_every_create(session, seeded):
     from irtcri.db.models import AuditEvent
     ev = session.scalars(select(AuditEvent)).all()
     assert {e.entity_type for e in ev} >= {"site", "patient", "catheter_episode"}
+
+
+def test_data_dictionary_csv_is_in_sync_with_yaml():
+    """docs/DATA_DICTIONARY.csv is generated (`irtcri dictionary-docs`); regenerate after editing the YAML."""
+    from pathlib import Path
+
+    from irtcri.schemas.dictionary import dictionary_csv
+    assert Path("docs/DATA_DICTIONARY.csv").read_text() == dictionary_csv()

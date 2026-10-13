@@ -4,6 +4,7 @@ and store them as ModelPrediction rows for the pilot dashboard."""
 from __future__ import annotations
 
 import io
+import json
 
 import numpy as np
 import pandas as pd
@@ -14,6 +15,7 @@ from irtcri.core.config import get_settings
 from irtcri.core.security import Principal
 from irtcri.db.audit import audit
 from irtcri.db.models import ModelPrediction, ModelVersion
+from irtcri.imaging.publish import publish_prediction
 from irtcri.imaging.storage import derived_bucket, get_object_store
 from irtcri.interpret.attributions import linear_contributions, occlusion_contributions, shap_contributions
 from irtcri.ml.governance import check_prediction_mode
@@ -57,6 +59,16 @@ def replay(session: Session, who: Principal, run_dir: str, splits: tuple[str, ..
            mode: str = "retrospective_replay", gradcam: bool = True, limit: int | None = None) -> int:
     """Store predictions for the given splits. Test splits are allowed only after locked evaluation."""
     model = LoadedModel(run_dir)
+    locked = {"test", "external_test"} & set(splits)
+    if locked:
+        from pathlib import Path
+        ledger = Path(model.card["dataset"]["root"]) / "test_access_ledger.jsonl"
+        evaluated = ledger.exists() and any(
+            json.loads(x).get("run_dir") == str(run_dir) and json.loads(x).get("split") in locked
+            for x in ledger.read_text().splitlines())
+        if not evaluated:
+            raise PermissionError("replay of locked splits is allowed only after the final locked evaluation "
+                                  "of this model (irtcri evaluate-test --confirm-final)")
     mv = register_model(session, who, model)
     check_prediction_mode(mode, mv.status, get_settings())
     samples, _, _ = load_ml_dataset(model.card["dataset"]["root"])
@@ -68,10 +80,10 @@ def replay(session: Session, who: Principal, run_dir: str, splits: tuple[str, ..
     n = 0
     for i, r in s.iterrows():
         contrib = explain_clinical(model, X_std, i) if X_std is not None else None
-        key = None
+        key, cam = None, None
         if gradcam and model.net is not None and "thermal" in model.modalities:
-            key = _gradcam_to_store(model, s.iloc[[i]], mv.id, r["thermal_image_id"])
-        session.add(ModelPrediction(
+            key, cam = _gradcam_to_store(model, s.iloc[[i]], mv.id, r["thermal_image_id"])
+        pred = ModelPrediction(
             model_version_id=mv.id, patient_id=r["patient_id"], episode_id=r["episode_id"],
             thermal_image_id=r["thermal_image_id"], rgb_image_id=r["rgb_image_id"] if isinstance(
                 r["rgb_image_id"], str) else None,
@@ -79,14 +91,18 @@ def replay(session: Session, who: Principal, run_dir: str, splits: tuple[str, ..
             probability=float(probs[i]), threshold=model.threshold,
             predicted_positive=bool(probs[i] >= model.threshold),
             explanation_object_key=key, feature_contributions=contrib,
-            input_provenance={"dataset": model.card["dataset"], "split": r["split"]}))
+            input_provenance={"dataset": model.card["dataset"], "split": r["split"]})
+        session.add(pred)
+        session.flush()
+        publish_prediction(session, pred, mv, model.card, cam)   # no-op unless XNAT write-back is enabled
         n += 1
     audit(session, who, "replay", "model_prediction", mv.id, after={"n": n, "splits": list(splits), "mode": mode})
     session.commit()
     return n
 
 
-def _gradcam_to_store(model: LoadedModel, row: pd.DataFrame, mv_id: str, image_id: str) -> str | None:
+def _gradcam_to_store(model: LoadedModel, row: pd.DataFrame, mv_id: str, image_id: str
+                      ) -> tuple[str | None, np.ndarray | None]:
     import torch
 
     from irtcri.interpret.gradcam import grad_cam
@@ -97,9 +113,9 @@ def _gradcam_to_store(model: LoadedModel, row: pd.DataFrame, mv_id: str, image_i
         with torch.enable_grad():
             cam = grad_cam(model.net, batch, "thermal_enc")
     except NotImplementedError:
-        return None
+        return None, None
     buf = io.BytesIO()
     np.save(buf, cam.astype(np.float16), allow_pickle=False)
     key = f"gradcam/{mv_id}/{image_id}.npy"
     get_object_store().put(derived_bucket(), key, buf.getvalue())
-    return key
+    return key, cam

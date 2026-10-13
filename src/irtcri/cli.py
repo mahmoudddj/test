@@ -34,9 +34,10 @@ def cmd_create_user(a):
 
 
 def cmd_dictionary_docs(a):
-    from irtcri.schemas.dictionary import dictionary_markdown
+    from irtcri.schemas.dictionary import dictionary_csv, dictionary_markdown
     Path(a.out).write_text(dictionary_markdown())
-    print(f"wrote {a.out}")
+    Path(a.csv).write_text(dictionary_csv())
+    print(f"wrote {a.out} and {a.csv}")
 
 
 def cmd_synthetic(a):
@@ -157,6 +158,45 @@ def cmd_register_analysis(a):
                       "n_outputs": len(rec.outputs or {})}, indent=2))
 
 
+def cmd_xnat_check(a):
+    from irtcri.imaging.repository import get_xnat_repository
+    repo = get_xnat_repository()
+    if repo is None:
+        sys.exit("XNAT_ENABLED is false")
+    repo.check_project()
+    print(json.dumps({"xnat": repo.cfg.url, "project": repo.cfg.project_id, "status": "reachable"}))
+
+
+def cmd_xnat_push(a):
+    from scripts.migrate_images_to_xnat import main as mig
+    sys.exit(mig((["--dry-run"] if not a.commit else []) + (["--limit", str(a.limit)] if a.limit else [])
+                 + (["--report", a.report] if a.report else [])))
+
+
+def cmd_xnat_pull(a):
+    from irtcri.core.security import SYSTEM_PRINCIPAL
+    from irtcri.integrations.xnat.sync import pull_from_xnat
+    rep = pull_from_xnat(_session(), SYSTEM_PRINCIPAL, dry_run=not a.commit)
+    print(json.dumps({k: (len(v) if isinstance(v, list) else v) for k, v in rep.items()}, indent=2))
+    for e in rep["errors"][:20]:
+        print(json.dumps(e))
+
+
+def cmd_qc_worker(a):
+    from irtcri.core.security import SYSTEM_PRINCIPAL
+    from irtcri.imaging.qc_worker import run_qc_worker
+    print(json.dumps(run_qc_worker(_session(), SYSTEM_PRINCIPAL, only_unpublished=not a.all, limit=a.limit),
+                     indent=2))
+
+
+def cmd_publish_annotations(a):
+    from irtcri.imaging.publish import publish_annotations
+    s = _session()
+    n = publish_annotations(s)
+    s.commit()
+    print(f"published annotation documents for {n} images")
+
+
 def cmd_serve(a):
     import uvicorn
     uvicorn.run("irtcri.hub.app:app", host=a.host, port=a.port, reload=a.reload)
@@ -173,6 +213,7 @@ def main(argv: list[str] | None = None) -> None:
     c.set_defaults(fn=cmd_create_user)
     c = sub.add_parser("dictionary-docs")
     c.add_argument("--out", default="docs/data_dictionary.md")
+    c.add_argument("--csv", default="docs/DATA_DICTIONARY.csv")
     c.set_defaults(fn=cmd_dictionary_docs)
     c = sub.add_parser("synthetic", help="generate SYNTHETIC demo data")
     c.add_argument("--n-patients", type=int, default=20)
@@ -239,6 +280,20 @@ def main(argv: list[str] | None = None) -> None:
     c.add_argument("--analyst", help="pseudonymous analyst code recorded in the registry")
     c.add_argument("--allow-unlocked", action="store_true", help="drafts only")
     c.set_defaults(fn=cmd_register_analysis)
+    sub.add_parser("xnat-check", help="verify XNAT connectivity and project access").set_defaults(fn=cmd_xnat_check)
+    c = sub.add_parser("xnat-push", help="copy hub images to XNAT (dry run unless --commit)")
+    c.add_argument("--commit", action="store_true")
+    c.add_argument("--limit", type=int)
+    c.add_argument("--report")
+    c.set_defaults(fn=cmd_xnat_push)
+    c = sub.add_parser("xnat-pull", help="register images uploaded directly to XNAT (dry run unless --commit)")
+    c.add_argument("--commit", action="store_true")
+    c.set_defaults(fn=cmd_xnat_pull)
+    c = sub.add_parser("qc-worker", help="run QC and publish QC documents (to XNAT when enabled)")
+    c.add_argument("--all", action="store_true", help="re-run even if an up-to-date QC document exists")
+    c.add_argument("--limit", type=int)
+    c.set_defaults(fn=cmd_qc_worker)
+    sub.add_parser("xnat-publish-annotations").set_defaults(fn=cmd_publish_annotations)
     c = sub.add_parser("serve")
     c.add_argument("--host", default="127.0.0.1")
     c.add_argument("--port", type=int, default=8000)

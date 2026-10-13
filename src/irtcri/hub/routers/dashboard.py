@@ -68,7 +68,8 @@ def timeline(study_id: str, include_predictions: bool = True, db: Session = Depe
                 "imaging_interval_hours")},
             "images": [{"id": i.id, "time": i.acquisition_time.isoformat(), "view": i.view,
                         "qc_status": i.qc_override_status or i.qc_status, "t_max": i.t_max,
-                        "rgb_image_id": pairs.get(i.id), "reference_label": adjs.get(i.id)} for i in imgs],
+                        "rgb_image_id": pairs.get(i.id), "reference_label": adjs.get(i.id),
+                        "acquisition_id": i.acquisition_id, "in_xnat": i.xnat_uri is not None} for i in imgs],
             "assessments": [{"time": a.event_time.isoformat(), "impression": a.clinical_impression,
                              "erythema_mm": a.erythema_mm, "purulent_discharge": a.purulent_discharge,
                              "tenderness": a.tenderness}

@@ -236,3 +236,39 @@ def dictionary_markdown(d: DataDictionary | None = None) -> str:
                 f"{v.time_reference} |")
         lines.append("")
     return "\n".join(lines)
+
+
+CSV_COLUMNS = ["name", "label", "entity", "category", "type", "unit", "unit_alternatives", "hard_min", "hard_max",
+               "plausible_min", "plausible_max", "allowed_values", "missing_representation", "source",
+               "time_reference", "availability_basis", "availability_lag_minutes", "expected_interval_hours",
+               "required", "protocol_status", "aliases", "validation_rules"]
+
+
+def dictionary_csv(d: DataDictionary | None = None) -> str:
+    """Flat CSV view of the dictionary (docs/DATA_DICTIONARY.csv). The YAML file stays the source of truth."""
+    import csv
+    import io
+    d = d or load_dictionary()
+    buf = io.StringIO()
+    w = csv.DictWriter(buf, fieldnames=CSV_COLUMNS, lineterminator="\n")
+    w.writeheader()
+    for v in d.variables:
+        w.writerow({
+            "name": v.name, "label": v.label, "entity": v.entity, "category": v.category, "type": v.type,
+            "unit": v.unit or "",
+            "unit_alternatives": "; ".join(f"{u} (x{c.scale:g}{c.offset:+g})" if c.offset else f"{u} (x{c.scale:g})"
+                                           for u, c in v.unit_alternatives.items()),
+            "hard_min": v.hard_range[0] if v.hard_range else "", "hard_max": v.hard_range[1] if v.hard_range else "",
+            "plausible_min": v.plausible_range[0] if v.plausible_range else "",
+            "plausible_max": v.plausible_range[1] if v.plausible_range else "",
+            "allowed_values": "|".join(v.allowed_values or []),
+            "missing_representation": "NULL + missing_reason in {" + ",".join(d.missing_codes) + "}",
+            "source": v.source, "time_reference": v.time_reference,
+            "availability_basis": v.availability.basis, "availability_lag_minutes": v.availability.lag_minutes,
+            "expected_interval_hours": v.expected_interval_hours if v.expected_interval_hours is not None else "",
+            "required": str(v.required).lower(), "protocol_status": v.protocol_status,
+            "aliases": "|".join(v.aliases),
+            "validation_rules": "; ".join(["hard range -> reject", "plausible range -> flag + auto query"]
+                                          * bool(v.hard_range) + v.validation),
+        })
+    return buf.getvalue()

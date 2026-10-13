@@ -25,6 +25,7 @@ export default function ThermalViewer({ image, prediction }: { image: any; predi
   return (
     <div className="panel">
       <h3>Image {image.time} <span className={image.qc_status}>QC {image.qc_status}</span></h3>
+      <p className="muted">Acquisition {image.acquisition_id ?? "-"}{image.in_xnat ? " | archived in XNAT" : ""}</p>
       <div className="row">
         <div style={{ flex: 1, minWidth: 260 }} ref={box} onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
           <AuthedImage path={path} alt="thermal image" style={{ width: "100%" }} onWindow={setWin} />

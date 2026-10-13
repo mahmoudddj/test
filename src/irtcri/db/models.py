@@ -259,6 +259,10 @@ class _ImageCommon(TrackedMixin):
     qc_override_reason: Mapped[str | None] = mapped_column(Text)
     duplicate_of_id: Mapped[str | None] = mapped_column(String(36))
     extra_metadata: Mapped[dict | None] = mapped_column(JSONType)
+    # acquisition (= XNAT imaging session) grouping thermal + RGB captured together
+    acquisition_id: Mapped[str | None] = mapped_column(String(96), index=True)
+    xnat_uri: Mapped[str | None] = mapped_column(String(512))     # set once the raw file is in XNAT
+    xnat_synced_time: Mapped[datetime | None] = mapped_column(UTCDateTime())
 
 
 class ThermalImage(_ImageCommon, Base):
@@ -525,3 +529,16 @@ class AnalysisRecord(IdMixin, Base):
     created_by: Mapped[str | None] = mapped_column(String(64))
     date_created: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
     __table_args__ = (UniqueConstraint("paper_id", "analysis_version"),)
+
+
+class ExternalResource(IdMixin, Base):
+    """Provenance of every artefact published to an external repository (e.g. XNAT)."""
+    __tablename__ = "external_resource"
+    backend: Mapped[str] = mapped_column(String(16), nullable=False)          # xnat
+    entity_type: Mapped[str] = mapped_column(String(48), nullable=False)      # thermal_image, model_prediction..
+    entity_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)             # raw|qc|gradcam|prediction|...
+    uri: Mapped[str] = mapped_column(String(512), nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_time: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
+    __table_args__ = (UniqueConstraint("backend", "uri"),)
